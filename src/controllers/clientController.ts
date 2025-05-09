@@ -14,6 +14,8 @@ export const createClient = asyncHandler(
       telephoneNumber,
       trnNumber,
       email,
+      accountNumber,
+      locations,
     } = req.body;
 
     // Validate required fields
@@ -27,7 +29,7 @@ export const createClient = asyncHandler(
     ) {
       throw new ApiError(
         400,
-        "Client name, address, pincode, mobile number and TRN are required"
+        "Client name, address, pincode, mobile number, email and TRN are required"
       );
     }
 
@@ -44,8 +46,10 @@ export const createClient = asyncHandler(
       mobileNumber,
       telephoneNumber,
       trnNumber,
+      email,
+      accountNumber,
+      locations,
       createdBy: req.user?.userId,
-      email: email,
     });
 
     res
@@ -68,6 +72,7 @@ export const getClients = asyncHandler(async (req: Request, res: Response) => {
       { trnNumber: { $regex: req.query.search, $options: "i" } },
       { mobileNumber: { $regex: req.query.search, $options: "i" } },
       { pincode: { $regex: req.query.search, $options: "i" } },
+      { accountNumber: { $regex: req.query.search, $options: "i" } },
     ];
   }
 
@@ -129,6 +134,8 @@ export const updateClient = asyncHandler(
       telephoneNumber,
       trnNumber,
       email,
+      accountNumber,
+      locations,
     } = req.body;
 
     const client = await Client.findById(id);
@@ -166,6 +173,9 @@ export const updateClient = asyncHandler(
             : client.telephoneNumber,
         trnNumber: trnNumber || client.trnNumber,
         email: email || client.email,
+        accountNumber:
+          accountNumber !== undefined ? accountNumber : client.accountNumber,
+        locations: locations !== undefined ? locations : client.locations,
       },
       { new: true }
     );
@@ -244,5 +254,92 @@ export const getClientsByPincode = asyncHandler(
         "Clients retrieved successfully"
       )
     );
+  }
+);
+
+// Additional helper functions for locations/buildings/apartments
+export const addLocationToClient = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      throw new ApiError(400, "Location name is required");
+    }
+
+    const client = await Client.findByIdAndUpdate(
+      id,
+      { $push: { locations: { name } } },
+      { new: true }
+    );
+
+    if (!client) {
+      throw new ApiError(404, "Client not found");
+    }
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, client, "Location added successfully"));
+  }
+);
+
+export const addBuildingToLocation = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { clientId, locationId } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      throw new ApiError(400, "Building name is required");
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      throw new ApiError(404, "Client not found");
+    }
+
+    const location = client.locations.id(locationId);
+    if (!location) {
+      throw new ApiError(404, "Location not found");
+    }
+
+    location.buildings.push({ name, apartments: [] });
+    await client.save();
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, client, "Building added successfully"));
+  }
+);
+
+export const addApartmentToBuilding = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { clientId, locationId, buildingId } = req.params;
+    const { number } = req.body;
+
+    if (!number) {
+      throw new ApiError(400, "Apartment number is required");
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      throw new ApiError(404, "Client not found");
+    }
+
+    const location = client.locations.id(locationId); // Changed _id to id
+    if (!location) {
+      throw new ApiError(404, "Location not found");
+    }
+
+    const building = location.buildings.id(buildingId); // Changed _id to id
+    if (!building) {
+      throw new ApiError(404, "Building not found");
+    }
+
+    building.apartments.push({ number });
+    await client.save();
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, client, "Apartment added successfully"));
   }
 );
