@@ -8,13 +8,7 @@ import {
   handleMultipleFileUploads,
   deleteFileFromS3,
 } from "../utils/uploadConf";
-
-const generateLPONumber = async () => {
-  const count = await LPO.countDocuments();
-  return `LPO-${new Date().getFullYear()}-${(count + 1)
-    .toString()
-    .padStart(4, "0")}`;
-};
+import { generateRelatedDocumentNumber } from "../utils/documentNumbers";
 
 export const createLPO = asyncHandler(async (req: Request, res: Response) => {
   const { projectId, lpoDate, supplier } = req.body;
@@ -77,7 +71,7 @@ export const createLPO = asyncHandler(async (req: Request, res: Response) => {
   // Create LPO
   const lpo = await LPO.create({
     project: projectId,
-    lpoNumber: await generateLPONumber(),
+    lpoNumber: await generateRelatedDocumentNumber(projectId, "LPO"),
     lpoDate: new Date(lpoDate),
     supplier,
     items: processedItems,
@@ -89,12 +83,10 @@ export const createLPO = asyncHandler(async (req: Request, res: Response) => {
     createdBy: req.user?.userId,
   });
 
-  // Update project status
   await Project.findByIdAndUpdate(projectId, { status: "lpo_received" });
 
   res.status(201).json(new ApiResponse(201, lpo, "LPO created successfully"));
 });
-
 // export const getLPOsByProject = asyncHandler(
 //   async (req: Request, res: Response) => {
 //     const { projectId } = req.params;

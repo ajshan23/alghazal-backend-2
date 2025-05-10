@@ -9,14 +9,9 @@ import puppeteer from "puppeteer";
 import { Client } from "../models/clientModel";
 import { Comment } from "../models/commentModel";
 import { User } from "../models/userModel";
-import { mailer } from "../utils/mailer"; // Import the mailer instance
-// Helper function to generate document numbers
-const generateEstimationNumber = async () => {
-  const count = await Estimation.countDocuments();
-  return `EST-${new Date().getFullYear()}-${(count + 1)
-    .toString()
-    .padStart(4, "0")}`;
-};
+import { mailer } from "../utils/mailer";
+import { generateRelatedDocumentNumber } from "../utils/documentNumbers";
+
 export const createEstimation = asyncHandler(
   async (req: Request, res: Response) => {
     const {
@@ -43,6 +38,7 @@ export const createEstimation = asyncHandler(
     ) {
       throw new ApiError(400, "Required fields are missing");
     }
+
     // Check if an estimation already exists for this project
     const existingEstimation = await Estimation.findOne({ project });
     if (existingEstimation) {
@@ -52,24 +48,25 @@ export const createEstimation = asyncHandler(
       );
     }
 
-    // Validate materials (no 'unit' check)
+    // Validate materials (now with UOM)
     if (materials && materials.length > 0) {
       for (const item of materials) {
         if (
           !item.description ||
+          !item.uom ||
           item.quantity == null ||
           item.unitPrice == null
         ) {
           throw new ApiError(
             400,
-            "Material items require description, quantity, and unitPrice"
+            "Material items require description, uom, quantity, and unitPrice"
           );
         }
         item.total = item.quantity * item.unitPrice;
       }
     }
 
-    // Validate labour (unchanged)
+    // Validate labour
     if (labour && labour.length > 0) {
       for (const item of labour) {
         if (!item.designation || item.days == null || item.price == null) {
@@ -82,17 +79,18 @@ export const createEstimation = asyncHandler(
       }
     }
 
-    // Validate terms (no 'unit' check)
+    // Validate terms (now with UOM)
     if (termsAndConditions && termsAndConditions.length > 0) {
       for (const item of termsAndConditions) {
         if (
           !item.description ||
+          !item.uom ||
           item.quantity == null ||
           item.unitPrice == null
         ) {
           throw new ApiError(
             400,
-            "Terms items require description, quantity, and unitPrice"
+            "Terms items require description, uom, quantity, and unitPrice"
           );
         }
         item.total = item.quantity * item.unitPrice;
@@ -111,10 +109,9 @@ export const createEstimation = asyncHandler(
       );
     }
 
-    // Rest of the controller remains the same...
     const estimation = await Estimation.create({
       project,
-      estimationNumber: await generateEstimationNumber(),
+      estimationNumber: await generateRelatedDocumentNumber(project, "EST"),
       workStartDate: new Date(workStartDate),
       workEndDate: new Date(workEndDate),
       validUntil: new Date(validUntil),
@@ -127,9 +124,11 @@ export const createEstimation = asyncHandler(
       preparedBy: req.user?.userId,
       subject: subject,
     });
-    const editedProject = await Project.findByIdAndUpdate(project, {
+
+    await Project.findByIdAndUpdate(project, {
       status: "estimation_prepared",
     });
+
     res
       .status(201)
       .json(
@@ -137,10 +136,11 @@ export const createEstimation = asyncHandler(
       );
   }
 );
+
 export const approveEstimation = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { comment, isApproved } = req.body; // isApproved: boolean
+    const { comment, isApproved } = req.body;
     const userId = req.user?.userId;
 
     // Validate input
@@ -264,7 +264,7 @@ export const markAsChecked = asyncHandler(
               subject: `Estimation Checked: ${estimationNumber}`,
               templateParams: {
                 userName: admin.firstName,
-                actionUrl: `http://localhost:5173/app/project-view/${project._id}`,
+                actionUrl: `http://localhost:5173/app/project-view/${estimation.project._id}`,
                 contactEmail: "propertymanagement@alhamra.ae",
                 logoUrl:
                   "https://krishnadas-test-1.s3.ap-south-1.amazonaws.com/alghazal/logo+alghazal.png",
@@ -337,7 +337,6 @@ export const getEstimationDetails = asyncHandler(
       throw new ApiError(404, "Estimation not found");
     }
     const clientId = estimationE?.project?.client;
-    console.log(clientId);
 
     if (!clientId) {
       throw new ApiError(400, "Client information not found");
@@ -377,6 +376,39 @@ export const updateEstimation = asyncHandler(
     delete updateData.approvedBy;
     delete updateData.estimatedAmount;
     delete updateData.profit;
+
+    // Update materials with UOM if present
+    if (updateData.materials) {
+      for (const item of updateData.materials) {
+        if (!item.uom) {
+          throw new ApiError(400, "UOM is required for material items");
+        }
+        if (item.quantity && item.unitPrice) {
+          item.total = item.quantity * item.unitPrice;
+        }
+      }
+    }
+
+    // Update terms with UOM if present
+    if (updateData.termsAndConditions) {
+      for (const item of updateData.termsAndConditions) {
+        if (!item.uom) {
+          throw new ApiError(400, "UOM is required for terms items");
+        }
+        if (item.quantity && item.unitPrice) {
+          item.total = item.quantity * item.unitPrice;
+        }
+      }
+    }
+
+    // Update labour if present
+    if (updateData.labour) {
+      for (const item of updateData.labour) {
+        if (item.days && item.price) {
+          item.total = item.days * item.price;
+        }
+      }
+    }
 
     // Update fields
     estimation.set(updateData);

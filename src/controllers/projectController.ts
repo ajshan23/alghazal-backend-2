@@ -12,6 +12,7 @@ import { Comment } from "../models/commentModel";
 import { LPO } from "../models/lpoModel";
 import dayjs from "dayjs";
 import { Types } from "mongoose";
+import { generateProjectNumber } from "../utils/documentNumbers";
 
 // Status transition validation
 const validStatusTransitions: Record<string, string[]> = {
@@ -36,7 +37,6 @@ const validStatusTransitions: Record<string, string[]> = {
   cancelled: [],
   project_closed: [],
 };
-
 export const createProject = asyncHandler(
   async (req: Request, res: Response) => {
     const {
@@ -47,12 +47,10 @@ export const createProject = asyncHandler(
       siteLocation,
     } = req.body;
 
-    // Validate required fields
     if (!projectName || !client || !siteAddress || !siteLocation) {
       throw new ApiError(400, "Required fields are missing");
     }
 
-    // Check if client exists
     const clientExists = await Client.findById(client);
     if (!clientExists) {
       throw new ApiError(404, "Client not found");
@@ -64,6 +62,7 @@ export const createProject = asyncHandler(
       client,
       siteAddress,
       siteLocation,
+      projectNumber: await generateProjectNumber(),
       status: "draft",
       progress: 0,
       createdBy: req.user?.userId,
@@ -74,7 +73,6 @@ export const createProject = asyncHandler(
       .json(new ApiResponse(201, project, "Project created successfully"));
   }
 );
-
 export const getProjects = asyncHandler(async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;

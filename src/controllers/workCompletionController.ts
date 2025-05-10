@@ -10,6 +10,7 @@ import {
 } from "../utils/uploadConf";
 import { Client } from "../models/clientModel";
 import { LPO } from "../models/lpoModel";
+import { generateRelatedDocumentNumber } from "../utils/documentNumbers";
 
 export const createWorkCompletion = asyncHandler(
   async (req: Request, res: Response) => {
@@ -23,9 +24,9 @@ export const createWorkCompletion = asyncHandler(
     if (!project) {
       throw new ApiError(404, "Project not found");
     }
-
     const workCompletion = await WorkCompletion.create({
       project: projectId,
+      completionNumber: await generateRelatedDocumentNumber(projectId, "WCP"),
       createdBy: req.user?.userId,
     });
 

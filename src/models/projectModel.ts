@@ -18,6 +18,7 @@ export interface IProject extends Document {
     | "invoice_sent"
     | "on_hold"
     | "cancelled";
+  projectNumber: string;
   progress: number;
   createdBy: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -88,6 +89,12 @@ const projectSchema = new Schema<IProject>(
     assignedTo: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    projectNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
     },
   },
   { timestamps: true }

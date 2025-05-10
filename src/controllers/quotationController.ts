@@ -7,13 +7,7 @@ import { Project } from "../models/projectModel";
 import { Estimation } from "../models/estimationModel";
 import { uploadItemImage, deleteFileFromS3 } from "../utils/uploadConf";
 import puppeteer from "puppeteer";
-
-const generateQuotationNumber = async () => {
-  const count = await Quotation.countDocuments();
-  return `QTN-${new Date().getFullYear()}-${(count + 1)
-    .toString()
-    .padStart(4, "0")}`;
-};
+import { generateRelatedDocumentNumber } from "../utils/documentNumbers";
 
 export const createQuotation = asyncHandler(
   async (req: Request, res: Response) => {
@@ -88,7 +82,7 @@ export const createQuotation = asyncHandler(
     const quotation = await Quotation.create({
       project: projectId,
       estimation: estimationId,
-      quotationNumber: await generateQuotationNumber(),
+      quotationNumber: await generateRelatedDocumentNumber(projectId, "QTN"),
       date: new Date(),
       validUntil: new Date(validUntil),
       scopeOfWork,
@@ -97,7 +91,7 @@ export const createQuotation = asyncHandler(
       vatPercentage,
       subtotal,
       vatAmount,
-      total,
+      netAmount: total,
       preparedBy: req.user?.userId,
     });
 

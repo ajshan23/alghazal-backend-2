@@ -2,9 +2,9 @@ import { Document, Schema, model, Types } from "mongoose";
 import { IProject } from "./projectModel";
 import { IUser } from "./userModel";
 
-// Removed 'unit' completely
 interface IEstimationItem {
   description: string;
+  uom: string; // Added UOM field
   quantity: number;
   unitPrice: number;
   total: number;
@@ -25,10 +25,10 @@ export interface IEstimation extends Document {
   validUntil: Date;
   paymentDueBy: number;
 
-  subject?: string; // Optional field
+  subject?: string;
   materials: IEstimationItem[];
   labour: ILabourItem[];
-  termsAndConditions: IEstimationItem[]; // No 'unit' here either
+  termsAndConditions: IEstimationItem[];
 
   estimatedAmount: number;
   quotationAmount?: number;
@@ -49,6 +49,7 @@ export interface IEstimation extends Document {
 
 const estimationItemSchema = new Schema<IEstimationItem>({
   description: { type: String, required: true },
+  uom: { type: String, required: true }, // Added UOM field
   quantity: { type: Number, required: true, min: 0 },
   unitPrice: { type: Number, required: true, min: 0 },
   total: { type: Number, required: true, min: 0 },
@@ -67,7 +68,7 @@ const estimationSchema = new Schema<IEstimation>(
       type: Schema.Types.ObjectId,
       ref: "Project",
       required: true,
-      unique: true, // Ensures only one estimation per project
+      unique: true,
     },
     estimationNumber: {
       type: String,
@@ -102,7 +103,7 @@ const estimationSchema = new Schema<IEstimation>(
     },
     materials: [estimationItemSchema],
     labour: [labourItemSchema],
-    termsAndConditions: [estimationItemSchema], // Same schema as materials
+    termsAndConditions: [estimationItemSchema],
     estimatedAmount: {
       type: Number,
       required: true,
@@ -148,7 +149,6 @@ const estimationSchema = new Schema<IEstimation>(
   { timestamps: true }
 );
 
-// Pre-save hook (unchanged)
 estimationSchema.pre<IEstimation>("save", function (next) {
   const materialsTotal = this.materials.reduce(
     (sum, item) => sum + (item.total || 0),
@@ -175,7 +175,6 @@ estimationSchema.pre<IEstimation>("save", function (next) {
   next();
 });
 
-// Indexes (unchanged)
 estimationSchema.index({ project: 1 });
 estimationSchema.index({ estimationNumber: 1 });
 estimationSchema.index({ isApproved: 1 });
